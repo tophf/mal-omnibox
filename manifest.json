@@ -1,0 +1,28 @@
+{
+	"name": "MAL omnibox ~",
+	"description": "MyAnimeList omnibox search predictions",
+	"version": "1.0",
+	"omnibox": {
+		"keyword": "mal"
+	},
+	"icons": {
+		"16": "icon/16.png",
+		"32": "icon/32.png",
+		"128": "icon/128.png",
+		"256": "icon/256.png"
+	},
+	"background": {
+		"scripts": ["background.js"],
+		"persistent": false
+	},
+	"permissions": [
+		"storage",
+		"activeTab",
+		"notifications",
+		"alarms",
+		"https://myanimelist.net/search/*",
+		"https://myanimelist.cdn-dena.com/images/*"
+	],
+	"manifest_version": 2,
+	"minimum_chrome_version": "45" /* arrow functions */
+}
