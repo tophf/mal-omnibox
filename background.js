@@ -6,7 +6,7 @@ const SEARCH_URL = 'https://myanimelist.net/anime.php?q=';
 const MAL_URL = 'https://myanimelist.net/';
 
 const STORAGE_QUOTA = 5242880;
-const CATEGORIES = {a: 'anime', m: 'manga', c: 'character', p: 'people', '': 'all'};
+const CATEGORIES = {a: 'anime', m: 'manga', c: 'character', p: 'person', '': 'all'};
 
 let g = {
 	category: '',
