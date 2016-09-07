@@ -54,7 +54,7 @@ chrome.omnibox.onInputEntered.addListener(text =>
 		                                          : MAL_URL
 	}));
 
-chrome.omnibox.onInputCancelled.addListener(abortRequest);
+chrome.omnibox.onInputCancelled.addListener(abortPendingSearch);
 
 chrome.alarms.onAlarm.addListener(alarm =>
 	g.cache.remove(alarm.name));
@@ -75,47 +75,44 @@ function onInputChanged(text, suggest)
 	if (g.text.length < 3)
 		return;
 
-	pipeAsync(
-		readCache,
-		searchMAL,
-		updateCache,
-		data => displayData(data, suggest)
+	Promise.resolve(g.textForCache)
+		.then(readCache)
+		.then(searchMAL)
+		.then(data => displayData(data, suggest));
+}
+
+function readCache(key)
+{
+	return new Promise(done =>
+		g.cache.get(key, items => done(items[key]))
 	);
 }
 
-function readCache(data, next)
+function searchMAL(data)
 {
-	g.cache.get(g.textForCache, results =>
-		next(results[g.textForCache])
-	);
+	abortPendingSearch();
+	return data && data.expires > Date.now() ? data
+		: new Promise(done =>
+			g.xhrScheduled = setTimeout(() => {
+				g.xhr.open('GET', API_URL.replace('%t', g.category) + g.textForURL);
+				g.xhr.onreadystatechange = () => {
+					if (g.xhr.readyState == XMLHttpRequest.DONE && g.xhr.status == 200) {
+						data = cookSuggestions(g.xhr.response);
+						updateCache(data);
+						done(data);
+					}
+				};
+				g.xhr.send();
+			}, REQUEST_DELAY)
+		);
 }
 
-function searchMAL(data, next)
+function updateCache(data)
 {
-	abortRequest();
-
-	if (data && data.expires > Date.now())
-		return next(data);
-
-	g.xhrScheduled = setTimeout(() => {
-		g.xhr.open('GET', API_URL.replace('%t', g.category) + g.textForURL);
-		g.xhr.onreadystatechange = () => {
-			if (g.xhr.readyState == XMLHttpRequest.DONE && g.xhr.status == 200)
-				next(cookSuggestions(g.xhr.response));
-		};
-		g.xhr.send();
-	}, REQUEST_DELAY);
-}
-
-function updateCache(data, next)
-{
-	if (!data.expires) {
-		data.expires = Date.now() + MAX_CACHE_AGE;
-		g.cache.set({[g.textForCache]: data});
-		g.cache.getBytesInUse(null, size => size > STORAGE_QUOTA/2 && cleanupCache());
-		chrome.alarms.create(g.textForCache, {when: data.expires});
-	}
-	next(data);
+	data.expires = Date.now() + MAX_CACHE_AGE;
+	g.cache.set({[g.textForCache]: data});
+	g.cache.getBytesInUse(null, size => size > STORAGE_QUOTA/2 && cleanupCache());
+	chrome.alarms.create(g.textForCache, {when: data.expires});
 }
 
 function cleanupCache() {
@@ -153,7 +150,7 @@ function showImageNotification(event) {
 	});
 }
 
-function abortRequest()
+function abortPendingSearch()
 {
 	g.xhr.abort();
 	clearTimeout(g.xhrScheduled);
@@ -257,15 +254,4 @@ function sanitizeInput(s)
 	return s.replace(/^[!-\/:-?\[-`{-~\s]+/, '')
 	        .replace(/\s{2,}/, ' ')
 	        .replace(/[!-\/:-?\[-`{-~\s]+$/, '');
-}
-
-function pipeAsync(...functions)
-{
-	var index = 0;
-	_next(undefined);
-
-	function _next(data) {
-		if (index < functions.length)
-			functions[index++](data, _next);
-	}
 }
