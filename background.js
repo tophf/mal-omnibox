@@ -165,7 +165,7 @@ function cookSuggestions(found)
 			.map(cat => `${cat.type} (${cat.items.length})`).join(', '),
 		suggestions: []
 			.concat.apply([], found.categories.map(cat => cat.items.map(_preprocess)))
-			.sort((a,b) => b.weight - a.weight)
+			.sort((a,b) => b.weight - a.weight || (a.name > b.name ? 1 : a.name < b.name ? -1 : 0))
 			.map(_formatItem),
 		best: best && {
 			name: best.name,
@@ -183,7 +183,7 @@ function cookSuggestions(found)
 		var name = item.name = item.name.replace(new RegExp(`\\s+${type}$`), '');
 
 		var marked = item.marked = name.replace(rxWords, '\r$&\n');
-		item.weight = 100 * (isInCategory ? 1 : 0) +
+		item.weight =  50 * (isInCategory ? 1 : 0) +
 		               10 * (marked.match(/^\r|$/g).length - 1) +
 		                4 * (marked.match(/ \r|$/g).length - 1) +
 		                    (marked.match(/\S\r|$/g).length - 1);
