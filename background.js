@@ -1,5 +1,6 @@
 const MAX_CACHE_AGE = 7 * 24 * 3600 * 1000; // ms, 7 days
 const REQUEST_DELAY = 200; // ms
+const KEY_PREFIX = 'input:'; // cache key prefix
 
 const MAL_URL = 'https://myanimelist.net/';
 const API_URL = MAL_URL + 'search/prefix.json?type=%t&v=1&keyword=';
@@ -17,8 +18,8 @@ const CATEGORIES = {
 	k: 'club',
 	'': 'all'
 };
-const CATEGORY_SPLITTER = new RegExp('^(.*?)(?:/([' +
-	Object.keys(CATEGORIES).join('') + ']))?$', 'i');
+const CATEGORY_SPLITTER = new RegExp('^(.*?)(/[' +
+	Object.keys(CATEGORIES).join('') + '])?!?$', 'i');
 
 let g = {
 	text: '',          // sanitized
@@ -26,6 +27,10 @@ let g = {
 	textForURL: '',    // sanitized %-encoded
 	category: '',      // full name of category specified after /
 	siteLink: '',      // top suggestion with site search link and info
+	partialInputs: [], // [o, on, oni, oniz, onizu, onizuk, onizuka]
+	                   // assuming the last one is actually fetched and stored,
+	                   // each of the preceding strings will be remembered in cache
+	                   // to resolve as onizuka
 
 	xhrScheduled: 0,   // setTimeout id
 	xhr: new XMLHttpRequest(),
@@ -63,16 +68,29 @@ chrome.alarms.onAlarm.addListener(alarm =>
 
 function onInputChanged(text, suggest)
 {
-	var m = text.trim().match(CATEGORY_SPLITTER);
-	g.category = CATEGORIES[m[2] || ''];
+	text = text.trim();
+	g.forceSearch = text.endsWith('!');
+	var m = text.match(CATEGORY_SPLITTER);
+	g.categoryKey = m[2] || '';
+	g.category = CATEGORIES[g.categoryKey.substr(1)];
 	g.text = sanitizeInput(m[1]);
 	g.textForURL = encodeURIComponent(m[1]);
-	g.textForCache = 'input:' + g.text + (m[2] ? '/'+m[2] : '');
+	g.textForCache = KEY_PREFIX + g.text + g.categoryKey;
+
+	while (g.partialInputs.length) {
+		var last = g.partialInputs.slice(-1)[0];
+		if (!last || !g.text.startsWith(last) || g.text.toLowerCase() == last) {
+			g.partialInputs.pop();
+		} else {
+			break;
+		}
+	}
+	g.partialInputs.push(g.text.toLowerCase());
 
 	g.siteLink = `<dim>Search for <match>${escapeXML(g.text)}</match> on site.</dim>`;
 	chrome.omnibox.setDefaultSuggestion({description: g.siteLink});
 
-	if (g.text.length < 3)
+	if (!g.text.length)
 		return;
 
 	Promise.resolve(g.textForCache)
@@ -84,14 +102,22 @@ function onInputChanged(text, suggest)
 function readCache(key)
 {
 	return new Promise(done =>
-		g.cache.get(key, items => done(items[key]))
+		g.cache.get(key, items => {
+			var data = items[key];
+			if (typeof data == 'string') {
+				key = KEY_PREFIX + data;
+				g.cache.get(key, items => done(items[key]));
+			} else {
+				done(data);
+			}
+		})
 	);
 }
 
 function searchMAL(data)
 {
 	abortPendingSearch();
-	return data && data.expires > Date.now() ? data
+	return data && data.expires > Date.now() && !g.forceSearch ? data
 		: new Promise(done =>
 			g.xhrScheduled = setTimeout(() => {
 				g.xhr.open('GET', API_URL.replace('%t', g.category) + g.textForURL);
@@ -111,6 +137,14 @@ function updateCache(data)
 {
 	data.expires = Date.now() + MAX_CACHE_AGE;
 	g.cache.set({[g.textForCache]: data});
+	g.partialInputs.pop();
+	if (g.partialInputs.length) {
+		var partials = {};
+		var lcase = g.text.toLowerCase();
+		g.partialInputs.forEach(p =>
+			partials[KEY_PREFIX + p + g.categoryKey] = lcase + g.categoryKey);
+		g.cache.set(partials);
+	}
 	g.cache.getBytesInUse(null, size => size > STORAGE_QUOTA/2 && cleanupCache());
 	chrome.alarms.create(g.textForCache, {when: data.expires});
 }
