@@ -2,9 +2,9 @@ const MAX_CACHE_AGE = 7 * 24 * 3600 * 1000; // ms, 7 days
 const REQUEST_DELAY = 200; // ms
 const KEY_PREFIX = 'input:'; // cache key prefix
 
-const MAL_URL = 'https://myanimelist.net/';
-const API_URL = MAL_URL + 'search/prefix.json?type=%t&v=1&keyword=';
-const SEARCH_URL = MAL_URL + 'anime.php?q=';
+const SITE_URL = 'https://myanimelist.net/';
+const API_URL = SITE_URL + 'search/prefix.json?type=%t&v=1&keyword=';
+const SEARCH_URL = SITE_URL + 'anime.php?q=';
 
 const STORAGE_QUOTA = 5242880;
 const CATEGORIES = {
@@ -48,15 +48,16 @@ g.img.onload = showImageNotification;
 
 /*****************************************************************************/
 
-chrome.omnibox.setDefaultSuggestion({description: `Open <url>${MAL_URL}</url>`});
+chrome.omnibox.setDefaultSuggestion({description: `Open <url>${SITE_URL}</url>`});
 
 chrome.omnibox.onInputChanged.addListener(onInputChanged);
 
 chrome.omnibox.onInputEntered.addListener(text =>
 	chrome.tabs.update({
-		url: text.match(/^https?:/) ? text
-		                            : text.trim() ? SEARCH_URL + g.textForURL
-		                                          : MAL_URL
+		url: text.match(/^https?:/)
+			? text
+			: text.trim() ? SEARCH_URL + g.textForURL
+			              : SITE_URL
 	}));
 
 chrome.omnibox.onInputCancelled.addListener(abortPendingSearch);
@@ -95,7 +96,7 @@ function onInputChanged(text, suggest)
 
 	Promise.resolve(g.textForCache)
 		.then(readCache)
-		.then(searchMAL)
+		.then(searchSite)
 		.then(data => displayData(data, suggest));
 }
 
@@ -114,7 +115,7 @@ function readCache(key)
 	);
 }
 
-function searchMAL(data)
+function searchSite(data)
 {
 	abortPendingSearch();
 	return data && data.expires > Date.now() && !g.forceSearch ? data
@@ -176,11 +177,11 @@ function showImageNotification(event) {
 	g.canvas2d.drawImage(this, 0, 0);
 	chrome.notifications.create('best', {
 		type: 'image',
-		iconUrl: 'icon/128.png',
+		iconUrl: 'icon/256.png',
 		imageUrl: g.canvas.toDataURL(),
-		title: g.best.name + ' (' + g.best.type + ')',
-		message: g.best.dates,
-		contextMessage: g.best.status,
+		title: g.best.title,
+		message: g.best.text,
+		contextMessage: g.best.note,
 	});
 }
 
@@ -202,10 +203,9 @@ function cookSuggestions(found)
 			.sort((a,b) => b.weight - a.weight || (a.name > b.name ? 1 : a.name < b.name ? -1 : 0))
 			.map(_formatItem),
 		best: best && {
-			name: best.name,
-			type: best.type,
-			status: best.status,
-			dates: best.payload.aired || best.payload.published || '',
+			title: best.name + ' (' + best.type + ')',
+			text: best.payload.aired || best.payload.published || '',
+			note: best.status,
 			image: best.image_url.replace(/\/r\/\d+x\d+|\?.*/g, ''),
 		},
 	};
@@ -258,7 +258,8 @@ function wordsAsRegexp(s)
 
 function escapeXML(s)
 {
-	return !s || !/["'<>&]/.test(s) ? s || ''
+	return !s || !/["'<>&]/.test(s)
+		? s || ''
 		: s.replace(/&/g, '&amp;')
 		   .replace(/"/g, '&quot;')
 		   .replace(/'/g, '&apos;')
@@ -268,7 +269,8 @@ function escapeXML(s)
 
 function unescapeXML(s)
 {
-	return !s || !/["'<>&]/.test(s) ? s || ''
+	return !s || !/["'<>&]/.test(s)
+		? s || ''
 		: s
 			.replace(/&quot;/g, '"')
 			.replace(/&apos;/g, "'")
