@@ -4,7 +4,8 @@ const KEY_PREFIX = 'input:'; // cache key prefix
 
 const SITE_URL = 'https://myanimelist.net/';
 const API_URL = SITE_URL + 'search/prefix.json?type=%t&v=1&keyword=';
-const SEARCH_URL = SITE_URL + 'anime.php?q=';
+const SEARCH_URL = SITE_URL + '%c.php?q=';
+const SEARCH_ALL_URL = SITE_URL + 'search/all?q=';
 
 const STORAGE_QUOTA = 5242880;
 const CATEGORIES = {
@@ -56,8 +57,9 @@ chrome.omnibox.onInputEntered.addListener(text =>
 	chrome.tabs.update({
 		url: text.match(/^https?:/)
 			? text
-			: text.trim() ? SEARCH_URL + g.textForURL
-			              : SITE_URL
+			: text.trim()
+				? (g.category == 'all' ? SEARCH_ALL_URL : SEARCH_URL.replace('%c', g.category)) + g.textForURL
+				: SITE_URL
 	}));
 
 chrome.omnibox.onInputCancelled.addListener(abortPendingSearch);
