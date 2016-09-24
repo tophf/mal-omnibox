@@ -1,5 +1,5 @@
 {
-	"name": "MAL omnibox ~",
+	"name": "MAL omnibox",
 	"description": "MyAnimeList omnibox search predictions",
 	"version": "1.0",
 	"omnibox": {
