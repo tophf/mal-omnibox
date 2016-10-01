@@ -78,7 +78,7 @@ function onInputChanged(text, suggest)
 	g.category = CATEGORIES[g.categoryKey.substr(1)];
 	g.text = sanitizeInput(m[1]);
 	g.textForURL = encodeURIComponent(m[1]);
-	g.textForCache = KEY_PREFIX + g.text + g.categoryKey;
+	g.textForCache = KEY_PREFIX + g.text.toLowerCase() + g.categoryKey;
 
 	while (g.partialInputs.length) {
 		var last = g.partialInputs.slice(-1)[0];
