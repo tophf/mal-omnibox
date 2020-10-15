@@ -45,7 +45,6 @@ const g = {
 };
 g.xhr.responseType = 'json';
 g.canvas2d = g.canvas.getContext('2d');
-g.img.onload = showImageNotification;
 
 /*****************************************************************************/
 
@@ -163,27 +162,23 @@ function displayData(data, suggest) {
   chrome.omnibox.setDefaultSuggestion({description: data.siteLink});
   suggest(data.suggestions);
   if (data.best) {
-    g.img.src = data.best.image;
+    fetch(data.best.image)
+      .then(r => r.blob())
+      .then(showImageNotification);
     g.best = data.best;
   }
 }
 
-/** @this {HTMLImageElement} */
-function showImageNotification() {
-  // skip placeholder images
-  if (this.naturalWidth < 50)
-    return;
-  g.canvas.width = this.naturalWidth;
-  g.canvas.height = this.naturalHeight;
-  g.canvas2d.drawImage(this, 0, 0);
+function showImageNotification(blob) {
+  const url = URL.createObjectURL(blob);
   chrome.notifications.create('best', {
     type: 'image',
     iconUrl: 'icon/256.png',
-    imageUrl: g.canvas.toDataURL(),
+    imageUrl: url,
     title: g.best.title,
     message: g.best.text,
     contextMessage: g.best.note,
-  });
+  }, () => URL.revokeObjectURL(url));
 }
 
 function abortPendingSearch() {
