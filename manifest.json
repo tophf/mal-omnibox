@@ -12,16 +12,18 @@
     "256": "icon/256.png"
   },
   "background": {
-    "scripts": ["background.js"],
-    "persistent": false
+    "service_worker": "bg.js",
+    "type": "module"
   },
   "permissions": [
     "alarms",
     "notifications",
-    "storage",
+    "storage"
+  ],
+  "host_permissions": [
     "https://myanimelist.net/search/*",
     "https://myanimelist.cdn-dena.com/images/*"
   ],
-  "manifest_version": 2,
-  "minimum_chrome_version": "49"
+  "manifest_version": 3,
+  "minimum_chrome_version": "102"
 }
