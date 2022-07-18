@@ -21,7 +21,6 @@ const g = /** @namespace SiteState */ {
   /** @type AbortController */
   reqAborter: null,
   cache: chrome.storage.local,
-  best: null,        // the best match to display in a notification
 };
 
 export function init(opts) {
@@ -32,7 +31,7 @@ export function init(opts) {
 
 /*****************************************************************************/
 
-chrome.omnibox.setDefaultSuggestion({description: `Open <url>${g.SITE_URL}</url>`});
+setDefault(`Open <url>${g.SITE_URL}</url>`);
 
 chrome.omnibox.onInputChanged.addListener(onInputChanged);
 
@@ -49,6 +48,10 @@ chrome.alarms.onAlarm.addListener(alarm =>
   g.cache.remove(alarm.name));
 
 /*****************************************************************************/
+
+function setDefault(description) {
+  return chrome.omnibox.setDefaultSuggestion({description});
+}
 
 async function onInputChanged(text, suggest) {
   text = text.trim();
@@ -71,12 +74,14 @@ async function onInputChanged(text, suggest) {
   g.partialInputs.push(g.text.toLowerCase());
 
   g.siteLink = `<dim>Search for <match>${escapeXML(g.text)}</match> on site.</dim>`;
-  chrome.omnibox.setDefaultSuggestion({description: g.siteLink});
+  setDefault(g.siteLink);
 
   const data = g.text && await searchSite();
   if (data) {
-    displayData(data);
-    suggest(data.suggestions);
+    const {best, siteLink, suggestions} = data;
+    setDefault(siteLink);
+    if (best) displayBest(best);
+    if (suggestions?.[0]) suggest(suggestions);
   }
 }
 
@@ -137,28 +142,20 @@ function cleanupCache() {
   });
 }
 
-/** @param {CookedData} _ */
-function displayData({best, siteLink}) {
-  chrome.omnibox.setDefaultSuggestion({description: siteLink});
+async function displayBest(best) {
   const img = best.image;
-  const url = g.makeImageUrl?.(img) ?? img;
-  if (url) {
-    g.best = best;
-    fetch(url)
-      .then(r => r.blob())
-      .then(blob2dataUri)
-      .then(showImageNotification);
-  }
+  const url = (img && g.makeImageUrl?.(img)) ?? img;
+  return url && showImageNotification(await fetchAsDataUri(url), best);
 }
 
-function showImageNotification(url) {
+function showImageNotification(url, {note, text, title}) {
   chrome.notifications.create('best', {
     type: 'image',
     iconUrl: 'icon/256.png',
     imageUrl: url,
-    title: g.best.title,
-    message: g.best.text,
-    contextMessage: g.best.note,
+    message: text,
+    contextMessage: note,
+    title,
   });
 }
 
@@ -168,7 +165,8 @@ function abortPendingSearch() {
   g.reqTimer = g.reqAborter = null;
 }
 
-function blob2dataUri(blob) {
+async function fetchAsDataUri(url) {
+  const blob = await (await fetch(url)).blob();
   return new Promise(resolve => {
     const fr = new FileReader();
     fr.onloadend = () => resolve(fr.result);
