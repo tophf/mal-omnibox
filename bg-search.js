@@ -35,12 +35,14 @@ setDefault(`Open <url>${g.SITE_URL}</url>`);
 
 chrome.omnibox.onInputChanged.addListener(onInputChanged);
 
-chrome.omnibox.onInputEntered.addListener(text =>
-  chrome.tabs.update({
-    url: text.match(/^https?:/) ? text :
-      text.trim() ? g.makeSearchUrl() :
-        g.SITE_URL,
-  }));
+chrome.omnibox.onInputEntered.addListener((text, mode) => {
+  const url = text.match(/^https?:/) ? text :
+    text.trim() ? g.makeSearchUrl() :
+      g.SITE_URL;
+  return mode === 'currentTab'
+    ? chrome.tabs.update({url})
+    : chrome.tabs.create({url, active: mode === 'newForegroundTab'});
+});
 
 chrome.omnibox.onInputCancelled.addListener(abortPendingSearch);
 
